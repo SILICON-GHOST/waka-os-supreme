@@ -1,0 +1,284 @@
+import numpy as np
+import time
+import os
+import mmap
+import struct
+import pickle
+from enum import Enum
+
+# =====================================================================
+# 1. ACCÉLÉRATEUR MATÉRIEL (JIT Compilation)
+# =====================================================================
+try:
+    from numba import njit
+except ImportError:
+    def njit(func): return func
+
+# =====================================================================
+# 2. ENUMÉRATIONS ET REGISTRES MATÉRIELS (L'Ossature FER-56)
+# =====================================================================
+class KernelState(Enum):
+    NOMINAL = 0        # Résolution nominale, traitement fluide
+    COMPRESSED = 1     # Congestion de bus : Tampons élastiques (4-bit)
+    FAIL_SAFE = 2      # Crise cinétique ou batterie critique
+    BYPASS_ROM = 3     # Surchauffe ou panne : Commutation sur mémoire morte
+
+# Constantes Physiques et Thermiques du Châssis
+MASSE_CHASSIS_FER = 1800.0   # kg
+GRAVITE = 9.81
+RENDEMENT_REGEN = 0.78       # Récupération d'énergie vers pack Tesla
+
+M_CORE_CP = 2000.0 * 500.0   # Masse cœur silicium * Cp
+M_SHELL_CP = 500.0 * 800.0   # Masse enveloppe/châssis * Cp
+K_SHELL = 0.15               # Coefficient de transfert interne
+
+# Constantes Mécaniques de la Hache
+MASSE_HACHE_TONNE = 1000.0
+LONGUEUR_BRAS = 2.2
+
+# =====================================================================
+# 3. LE MICRO-NOYAU CYBER-PHYSIQUE CENTRAL (@NJIT)
+# =====================================================================
+@njit
+def execute_supreme_core_step(audio_chunk, angle_bras, vitesse_angulaire, charge_kg, 
+                              t_core, t_shell, t_ext, charge_calcul, dt):
+    """
+    Noyau Mathématique Pur : Résout l'entropie du flux, la cinétique Nintai Ryu, 
+    et le couplage thermodynamique à 2 masses en UNE SEULE PASSE MACHINE.
+    """
+    # --- A. ENERGIE DU RYTHME & CINÉTIQUE (Nintai Ryu / Caustic Sync) ---
+    somme_energie = 0.0
+    for i in range(len(audio_chunk)):
+        somme_energie += audio_chunk[i] * audio_chunk[i]
+    rms_audio = np.sqrt(somme_energie / len(audio_chunk)) if len(audio_chunk) > 0 else 0.0
+    
+    # Évaluation de la force cinétique sur le châssis
+    masse_totale = MASSE_CHASSIS_FER + charge_kg
+    force_gravite = masse_totale * GRAVITE * np.sin(np.radians(angle_bras))
+    force_inertie = masse_totale * (vitesse_angulaire * 0.1) # Émulation accélération
+    force_composite = force_gravite + force_inertie
+    
+    # Synchronisation du Beat et du Balancier (Drunken Master Compliance)
+    seuil_kick = 0.35
+    impulsion_rythmique = 0.0
+    status_flags = 0b0001  # SYS_NOMINAL
+    
+    if rms_audio > seuil_kick:
+        if np.abs(angle_bras) < 8.0:
+            # Synchro parfaite : Injection de puissance électrique
+            impulsion_rythmique = 2500.0 * np.sign(vitesse_angulaire) * (rms_audio / seuil_kick)
+            status_flags |= 0b0010  # FLAG : SYNCHRO_PARFAITE_BEAT
+        else:
+            # Bras mal aligné : On laisse flotter le bras sur son inertie
+            vitesse_angulaire += np.sin(np.radians(angle_bras)) * 0.05
+            status_flags |= 0b0100  # FLAG : ESQUIVE_COMPLIANCE_ACTIVE
+
+    # Équations du pendule d'une tonne sous contrainte rythmique
+    accel_gravite = -(GRAVITE / LONGUEUR_BRAS) * np.sin(np.radians(angle_bras))
+    accel_moteur = impulsion_rythmique / MASSE_HACHE_TONNE
+    nouvelle_vitesse = vitesse_angulaire + (accel_gravite + accel_moteur) * dt
+    nouvel_angle = angle_bras + nouvelle_vitesse * dt
+
+    # --- B. ENVELOPPE THERMODYNAMIQUE À DEUX MASSES ---
+    # L'entropie informatique (charge_calcul) et mécanique dissipe de la chaleur
+    chaleur_generee = (np.abs(force_composite) * 0.01) + (rms_audio * charge_calcul * 500.0)
+    
+    flux_interne = K_SHELL * (t_core - t_shell)
+    dt_core = (chaleur_generee - flux_interne) / M_CORE_CP * dt
+    flux_externe = 0.25 * (t_ext - t_shell)
+    dt_shell = (-flux_interne + flux_externe) / M_SHELL_CP * dt
+    
+    nouveau_t_core = t_core + dt_core
+    novo_t_shell = t_shell + dt_shell
+
+    # Évaluation du stress pour la résilience du bus
+    stress_systeme = np.abs(force_composite) + chaleur_generee
+    
+    return nouvel_angle, nouvelle_vitesse, novo_t_core, novo_t_shell, stress_systeme, status_flags
+
+# =====================================================================
+# 4. ARCHIVEUR BINAIRE PROJETÉ EN MÉMOIRE (Indexeur de fichier .waka)
+# =====================================================================
+class C12_Mmap_Indexer:
+    """ Indexeur 8-bit de stase matérielle via mmap direct sans overhead de descripteur """
+    def __init__(self, filename="systeme.waka"):
+        self.filename = filename
+        self.entry_size = 10  # [ID:1b][Type:1b][Offset:4b][Size:4b]
+        self.max_entries = 256
+        self._preallocate()
+
+    def _preallocate(self):
+        if not os.path.exists(self.filename):
+            with open(self.filename, "wb") as f:
+                f.write(b"\x00" * (self.entry_size * self.max_entries))
+
+    def indexer_stase(self, id_mod, type_mod, payload_dict):
+        data = pickle.dumps(payload_dict)
+        with open(self.filename, "r+b") as f:
+            mm = mmap.mmap(f.fileno(), 0)
+            f.seek(0, os.SEEK_END)
+            data_start = f.tell()
+            f.write(data)
+
+            index_pos = id_mod * self.entry_size
+            header = struct.pack("<BBII", id_mod, type_mod, data_start, len(data))
+            mm[index_pos:index_pos+self.entry_size] = header
+            mm.close()
+        print(f"💾 [WAKA DISK] Stase d'urgence du module {id_mod} indexée à l'adresse {data_start}")
+
+    def charger_stase(self, id_mod):
+        if not os.path.exists(self.filename): return None
+        with open(self.filename, "rb") as f:
+            mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+            index_pos = id_mod * self.entry_size
+            
+            _, _, start, size = struct.unpack("<BBII", mm[index_pos:index_pos+self.entry_size])
+            
+            if size == 0:
+                mm.close()
+                return None
+            data = mm[start:start+size]
+            mm.close()
+            return pickle.loads(data)
+
+# =====================================================================
+# 5. BUS DE CONTRÔLE CENTRAL ET FILTRE AUDIO (Twin Reverb)
+# =====================================================================
+class C12_Supreme_Bus_Controller:
+    def __init__(self):
+        self.state = KernelState.NOMINAL
+        self.t_core = 24.0
+        self.t_shell = 21.0
+        self.angle_bras = 45.0  # Angle de départ de la hache (degrés)
+        self.vitesse_angulaire = 0.0
+        self.io_buffer_size = 512
+        self.gain_tube = 3.5
+        self.voice_lut = np.sin(np.linspace(0, 2 * np.pi, 256))
+
+    def s_term_handshake(self, stress_systeme):
+        """ Signal STERM~ : arbitrage élastique de la bande passante """
+        if stress_systeme > 25000.0 and self.state == KernelState.NOMINAL:
+            self.state = KernelState.COMPRESSED
+            self.io_buffer_size = 128
+            return "⚠️ [STERM~] Stress critique ! Buffer compressé en mode 4-bit."
+        elif stress_systeme <= 25000.0 and self.state == KernelState.COMPRESSED:
+            self.state = KernelState.NOMINAL
+            self.io_buffer_size = 512
+            return "ℹ️ [STERM~] Relâchement des contraintes. Retour au mode Nominal."
+        return None
+
+    def pic_interrupt_controller(self):
+        """ Contrôleur d'interruptions d'urgence (PIC Anti-Polling) """
+        if self.t_core > 85.0 and self.state != KernelState.BYPASS_ROM:
+            self.state = KernelState.BYPASS_ROM
+            return "🚨 [IRQ_0x00_THERMAL] KERNEL PANIC : Surchauffe critique du cœur ! Isolement BYPASS_ROM."
+        return None
+
+    def tube_preamp_vana(self, signal):
+        """ Modélisation asymétrique de l'étage de saturation Lampe VANA """
+        return np.where(signal > 0, np.tanh(signal * self.gain_tube), np.arctan(signal * self.gain_tube * 0.8))
+
+    def fender_twin_eq(self, signal, sample_rate=44100):
+        """ Creux mythique à 500Hz et amplification des aigus dans le domaine fréquentiel """
+        spec = np.fft.rfft(signal)
+        freqs = np.fft.rfftfreq(len(signal), 1/sample_rate)
+        spec[freqs > 3000] *= 2.0
+        spec[(freqs > 400) & (freqs < 600)] *= 0.3
+        return np.fft.irfft(spec)
+
+# =====================================================================
+# 6. INTERFACE DES SERVICES CYBER-PUNK (Userland Guichet 4)
+# =====================================================================
+class Guichet4_Userland:
+    def __init__(self, bus, indexeur):
+        self.bus = bus
+        self.indexeur = indexeur
+
+    def executer_commande(self, commande, auth_key=0x42):
+        print(f"\n🤖 [USERLAND] Requête reçue au Guichet 4 : '{commande}'")
+        if auth_key != 0x42:
+            print("🤡 [SARCASTIC_CORE] : 'Accès refusé. Ton mot de passe n'est pas assez bleu.'")
+            return False
+
+        if commande == "ROCK":
+            print("🎸 Activation de la chaîne Twin Reverb VANA...")
+            signal_test = np.sin(np.linspace(0, 10, 1000))
+            traite = self.bus.fender_twin_eq(self.bus.tube_preamp_vana(signal_test))
+            print(f"✨ Signal audio traité : {len(traite)} échantillons stabilisés.")
+        elif commande == "STASE":
+            stase_data = {'state': self.bus.state.value, 't_core': self.bus.t_core, 'angle': self.bus.angle_bras}
+            self.indexeur.indexer_stase(id_mod=42, type_mod=1, payload_dict=stase_data)
+        return True
+
+# =====================================================================
+# 7. MISSION CONTROL : ECOSYSTÈME DE SIMULATION GLOBAL
+# =====================================================================
+if __name__ == "__main__":
+    bus_systeme = C12_Supreme_Bus_Controller()
+    indexeur_disk = C12_Mmap_Indexer()
+    userland = Guichet4_Userland(bus_systeme, indexeur_disk)
+
+    print("\n" + "═"*75)
+    print(" ⚡ CYBER-PHYSICAL OS ACTIVATED : NOYAU SUPRÊME C-12 UNIFIÉ WAKA_OS")
+    print("═"*75)
+
+    dt_frame = 0.0166  # Taux de rafraîchissement à 60Hz
+    
+    # --- PHASE 1 : SIMULATION D'UN RÉGIME DE CROISIÈRE CHAUD ---
+    print("\n🌲 [PHASE 1] Reprise forestière (Traitement de flux nominal)...")
+    for cycle in range(100):
+        audio_in = np.random.normal(0.0, 0.2, bus_systeme.io_buffer_size) # Bruit de fond
+        
+        na, nv, nc, ns, stress, flags = execute_supreme_core_step(
+            audio_in, bus_systeme.angle_bras, bus_systeme.vitesse_angulaire, 
+            charge_kg=450.0, t_core=bus_systeme.t_core, t_shell=bus_systeme.t_shell, 
+            t_ext=15.0, charge_calcul=0.4, dt=dt_frame
+        )
+        bus_systeme.angle_bras, bus_systeme.vitesse_angulaire = na, nv
+        bus_systeme.t_core, bus_systeme.t_shell = nc, ns
+        
+        # Arbitrage à chaud
+        bus_systeme.s_term_handshake(stress)
+
+    print(f"  ▪️ Alignement angulaire du bras : {bus_systeme.angle_bras:.2f}°")
+    print(f"  ▪️ Température Noyau Silicium   : {bus_systeme.t_core:.2f}°C")
+    print(f"  ▪️ État opérationnel du bus    : {bus_systeme.state.name}")
+
+    # --- PHASE 2 : AGRESSION CYBER-CINÉTIQUE ET INTERRUPTION ---
+    print("\n⚡ [PHASE 2] Choc mécanique extrême + Surcharge calculatoire...")
+    
+    for cycle in range(50):
+        # Simulation d'un impact ou signal ultra-violent (Sub-bass monstrueuse)
+        audio_aggressif = np.random.uniform(-5.0, 5.0, bus_systeme.io_buffer_size)
+        
+        na, nv, nc, ns, stress, flags = execute_supreme_core_step(
+            audio_aggressif, bus_systeme.angle_bras, bus_systeme.vitesse_angulaire, 
+            charge_kg=1200.0, t_core=bus_systeme.t_core, t_shell=bus_systeme.t_shell, 
+            t_ext=15.0, charge_calcul=0.95, dt=dt_frame
+        )
+        bus_systeme.angle_bras, bus_systeme.vitesse_angulaire = na, nv
+        bus_systeme.t_core, bus_systeme.t_shell = nc, ns
+        
+        # Le signal STERM~ compresse le bus, mais l'élévation thermique continue
+        msg_sterm = bus_systeme.s_term_handshake(stress)
+        if msg_sterm: print(f"   {msg_sterm}")
+            
+        # Surveillance par le PIC d'interruption
+        msg_irq = bus_systeme.pic_interrupt_controller()
+        if msg_irq:
+            print(f"   {msg_irq}")
+            print("  🔒 [STASE] Capture immédiate de l'état système via le Guichet 4...")
+            userland.executer_commande("STASE", auth_key=0x42)
+            break
+
+    # --- PHASE 3 : TEST DE SÉCURITÉ ET RELECTURE MMAP ---
+    print("\n🔐 [PHASE 3] Test d'intégrité de la mémoire morte et du stockage...")
+    userland.executer_commande("ROCK", auth_key=0x99)  # Doit échouer lamentablement
+    
+    # Relecture directe de notre stase via la projection de fichier mmap
+    relique_systeme = indexeur_disk.charger_stase(id_mod=42)
+    print(f"  ▪️ Données relues du disque .waka : {relique_systeme}")
+    
+    print("\n" + "═"*75)
+    print(" ✅ TOUT EST COUPLÉ ET STABILISÉ DANS LE NOYAU SUPRÊME C-12")
+    print("═"*75 + "\n")
