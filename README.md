@@ -6,7 +6,7 @@ Ultra-lightweight inference engine with 4-bit weight compression and Möbius arc
 
 ## 🎯 Philosophy
 
-Built by a 50-year-old hobbyist in a cabin over 2 months on an i5-2012 PowerShell. This is **real code that runs**, not theoretical vaporware. The goal: squeeze maximum physics and AI performance from ancient silicon.
+Built by a 50-year-old hobbyist in a cabin over 2 months on an i5-2012 PowerShell. This is **real code that runs**, not theoretical vaporware. The goal:EFFICIENCY (Effectiveness and Efficiency) squeeze maximum physics and AI performance from ancient silicon.
 
 **Core Concepts:**
 - **Cyber-Physical Coupling** - Real thermodynamics meets digital inference
@@ -216,7 +216,7 @@ See our **GitHub Issues** for specific tasks:
 - **Built:** In a cabin, 2 months, i5-2012, PowerShell on Windows
 - **License:** MIT (let's keep it open!)
 
-If you're a **hobbyist, student, or curious engineer**, dive in! Ask questions. This code is meant to be understood and improved together.
+If you're a **programmer, student, or engineer**, dive in! Ask questions. This code is meant to be understood and improved together.
 
 ---
 
@@ -236,9 +236,9 @@ copies of the Software...
 
 ## 🎵 Philosophy Quote
 
-> "The best code is not the most complex. It's the code that **runs on ancient hardware**, solves **real physics problems**, and invites the community to make it beautiful."
+> "The best code is not the most complex. It's the code that **runs on ancient hardware**, solves **real physics problems**, and invites the community to make it Effectiveness and Efficiency."
 >
-> — Built in a cabin, by someone with 50 years of life experience and 2 months of Python.
+> — Effectiveness and Efficiency
 
 ---
 
