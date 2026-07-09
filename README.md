@@ -1,6 +1,6 @@
 # 🔥 WAKA-OS SUPREME: C-12 Unified Cyber-Physical Kernel
 
-Ultra-lightweight inference engine with 4-bit weight compression and Möbius architecture. A fusion of **kernel core**, **embedded OS**, and **data flow** engineered for resource-constrained edge computing on legacy hardware.
+Ultra-lightweight inference engine with 8-bit weight compression and Möbius architecture. A fusion of **kernel core**, **embedded OS**, and **data flow** engineered for resource-constrained edge computing on legacy hardware.
 
 ---
 
