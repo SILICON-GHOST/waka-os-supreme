@@ -2,7 +2,19 @@
 
 Ultra-lightweight inference engine with 8-bit weight compression and Möbius architecture. A fusion of **kernel core**, **embedded OS**, and **data flow** engineered for resource-constrained edge computing on legacy hardware.
 
----
+-------------
+
+# WAKA-OS SUPREME: Flux-Oriented Computing
+
+Not just code. A system where:
+- **Text becomes geometry** (Gravure)
+- **Geometry becomes audio** (SWAM synthesis)
+- **Audio becomes thermal load** (Physical coupling)
+- **Thermal stress mutates the text** (Glitch feedback)
+
+This is **Möbius computing**: The output loop becomes the input.
+
+
 
 ## 🎯 Philosophy
 
